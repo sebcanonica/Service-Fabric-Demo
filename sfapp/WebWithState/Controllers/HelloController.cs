@@ -25,6 +25,32 @@ namespace WebWithState.Controllers
             _stateManager = stateManager;
         }
 
+        // PUT: api/hello/name
+        [HttpPut("{name}")]
+        public async Task<IActionResult> PutAsync(string name)
+        {
+            try
+            {
+                var dictionary = await _stateManager.GetOrAddAsync<IReliableDictionary<string, int>>(DICO_NAME);
+
+                using (ITransaction tx = _stateManager.CreateTransaction())
+                {
+                    await dictionary.AddOrUpdateAsync(tx, name, 1, (key, oldValue) => oldValue + 1);
+                    await tx.CommitAsync();
+                }
+
+                return this.Ok();
+            }
+            catch (FabricNotPrimaryException)
+            {
+                return new ContentResult { StatusCode = 410, Content = "The primary replica has moved. Please re-resolve the service." };
+            }
+            catch (FabricException)
+            {
+                return new ContentResult { StatusCode = 503, Content = "The service was unable to process the request. Please try again." };
+            }
+        }
+
         // GET: api/hello/name
         [HttpGet]
         public async Task<IActionResult> Get()
@@ -56,32 +82,6 @@ namespace WebWithState.Controllers
             {
                 return new ContentResult { StatusCode = 503, Content = "The service was unable to process the request. Please try again." };
             }
-        }
-
-        // PUT: api/hello/name
-        [HttpPut("{name}")]
-        public async Task<IActionResult> PutAsync(string name)
-        {
-            try
-            {
-                var dictionary = await _stateManager.GetOrAddAsync<IReliableDictionary<string, int>>(DICO_NAME);
-
-                using (ITransaction tx = _stateManager.CreateTransaction())
-                {
-                    await dictionary.AddOrUpdateAsync(tx, name, 1, (key, oldValue)=>oldValue + 1);
-                    await tx.CommitAsync();
-                }
-
-                return this.Ok();
-            }
-            catch (FabricNotPrimaryException)
-            {
-                return new ContentResult { StatusCode = 410, Content = "The primary replica has moved. Please re-resolve the service." };
-            }
-            catch (FabricException)
-            {
-                return new ContentResult { StatusCode = 503, Content = "The service was unable to process the request. Please try again." };
-            }
-        }        
+        }          
     }
 }
